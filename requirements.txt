@@ -6,3 +6,4 @@ openai
 duckduckgo-search
 scikit-learn
 XlsxWriter
+beautifulsoup4
