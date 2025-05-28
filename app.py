@@ -16,6 +16,9 @@ if uploaded_file:
             metrics_df.apply(lambda row: f"{row['Label']} ({row['Value']} {row['Unit']}) — {row['Sheet']}", axis=1)
         )
 
+        if selected_row:
+            st.session_state["selected_metric"] = selected_row
+
         metric = metrics_df[metrics_df.apply(lambda row: f"{row['Label']} ({row['Value']} {row['Unit']}) — {row['Sheet']}" == selected_row, axis=1)].iloc[0]
         base_value = metric["Value"]
         base_year = st.number_input("Base Year (e.g., 2022)", value=2022)
