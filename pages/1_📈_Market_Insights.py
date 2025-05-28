@@ -126,21 +126,3 @@ for i, term in enumerate(search_terms):
             st.markdown("- **🌟 Trends:**")
             st.markdown("   • " + ", ".join(set(trends)).title())
         st.markdown("------")
-
-""" # Perform linear regression forecasting
-model, forecast_df = perform_linear_regression(all_history)
-
-if forecast_df is not None:
-    st.markdown("### 📈 Forecast Based on Historical Data")
-    st.dataframe(forecast_df)
-
-    excel_data = convert_df_to_excel(forecast_df)
-    st.download_button(
-        label="📥 Download Forecast as Excel",
-        data=excel_data,
-        file_name=f"{query_label}_forecast.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-else:
-    st.warning("Insufficient data for forecasting.")
- """
