@@ -10,13 +10,13 @@ from io import BytesIO
 
 st.set_page_config(page_title="Market Insights", layout="wide")
 
-# Ensure metric was selected on the home page
 if "selected_metric" not in st.session_state:
     st.warning("⚠️ Please select a metric first on the home page.")
     st.stop()
 
 query = st.session_state["selected_metric"]
 query_label = query.split(" (")[0].strip()
+
 st.title(f"📡 Market Insights for: {query_label}")
 
 search_terms = [
@@ -32,7 +32,7 @@ def get_ddg_results(term, max_results=5, retries=3, delay=5):
                 return list(ddgs.text(term, max_results=max_results))
         except Exception as e:
             if attempt < retries - 1:
-                time.sleep(delay * (2 ** attempt))
+                time.sleep(delay * (2 ** attempt))  # exponential backoff
             else:
                 st.error(f"❌ Failed: {term} — {e}")
                 return []
@@ -46,7 +46,54 @@ def extract_insights(text):
 
     return cagr, history, trends
 
-# Step 1: Scrape and extract insights
+
+def perform_regression(history):
+    if not history:
+        return None, None, None
+
+    years, values = [], []
+    for h in history:
+        try:
+            year = int(h[2])
+            value = float(h[1].replace(',', ''))
+            years.append(year)
+            values.append(value)
+        except:
+            continue
+
+    if len(years) < 2:
+        return None, None, None
+
+    X = np.array(years).reshape(-1, 1)
+    y = np.array(values)
+    model = LinearRegression().fit(X, y)
+    future_years = np.arange(max(years)+1, max(years)+6).reshape(-1, 1)
+    predictions = model.predict(future_years)
+
+    df = pd.DataFrame({
+        "Year": list(years) + list(future_years.flatten()),
+        "Value": list(values) + list(predictions.astype(int)),
+        "Type": ["Historical"] * len(years) + ["Forecast"] * len(future_years)
+    })
+
+    cagr = ((values[-1] / values[0]) ** (1 / (years[-1] - years[0])) - 1) * 100
+    return df, cagr, (years, values, future_years.flatten(), predictions)
+
+def convert_to_excel(df, summary, plot_fig):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Market Data')
+        summary.to_excel(writer, index=False, sheet_name='Summary')
+
+        worksheet = writer.sheets['Market Data']
+        img_data = BytesIO()
+        plot_fig.savefig(img_data, format='png')
+        img_data.seek(0)
+        worksheet.insert_image('G2', 'forecast_chart.png', {'image_data': img_data})
+    output.seek(0)
+    return output
+
+# Scrape and process
 st.markdown("### 🔍 Web Insights")
 all_history, found_cagr, all_trends = [], None, []
 
@@ -81,77 +128,7 @@ for i, term in enumerate(search_terms):
             st.markdown("- **🌟 Trends:** " + ", ".join(set(trends)).title())
         st.markdown("---")
 
-# Step 2: Simulate history if needed (using scraped data only)
-if len(all_history) < 2 and found_cagr and all_history:
-    try:
-        all_history_parsed = [
-            (int(h[2]), float(h[1].replace(",", "")))
-            for h in all_history
-        ]
-        base_year, base_value = max(all_history_parsed, key=lambda x: x[0])
-
-        simulated_years = list(range(base_year - 4, base_year))
-        simulated_values = [
-            base_value / ((1 + found_cagr / 100) ** (base_year - y))
-            for y in simulated_years
-        ]
-
-        for y, v in zip(simulated_years, simulated_values):
-            all_history.append(('INR', f"{int(v)}", str(y)))
-
-        st.info(f"📊 Simulated data from base year {base_year} using CAGR {found_cagr}%")
-    except Exception as e:
-        st.warning(f"⚠️ Failed to simulate history from scraped data: {e}")
-
-# Step 3: Forecasting
-def perform_regression(history):
-    if not history:
-        return None, None, None
-
-    years, values = [], []
-    for h in history:
-        try:
-            year = int(h[2])
-            value = float(h[1].replace(',', ''))
-            years.append(year)
-            values.append(value)
-        except:
-            continue
-
-    if len(years) < 2:
-        return None, None, None
-
-    X = np.array(years).reshape(-1, 1)
-    y = np.array(values)
-    model = LinearRegression().fit(X, y)
-    future_years = np.arange(max(years)+1, max(years)+6).reshape(-1, 1)
-    predictions = model.predict(future_years)
-
-    df = pd.DataFrame({
-        "Year": list(years) + list(future_years.flatten()),
-        "Value": list(values) + list(predictions.astype(int)),
-        "Type": ["Historical"] * len(years) + ["Forecast"] * len(future_years)
-    })
-
-    cagr = ((values[-1] / values[0]) ** (1 / (years[-1] - years[0])) - 1) * 100
-    return df, cagr, (years, values, future_years.flatten(), predictions)
-
-# Step 4: Excel export
-def convert_to_excel(df, summary, plot_fig):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Market Data')
-        summary.to_excel(writer, index=False, sheet_name='Summary')
-
-        worksheet = writer.sheets['Market Data']
-        img_data = BytesIO()
-        plot_fig.savefig(img_data, format='png')
-        img_data.seek(0)
-        worksheet.insert_image('G2', 'forecast_chart.png', {'image_data': img_data})
-    output.seek(0)
-    return output
-
-# Step 5: Run Forecast
+# Forecast and plot
 df_forecast, final_cagr, plot_data = perform_regression(all_history)
 
 if df_forecast is not None:
@@ -170,7 +147,7 @@ if df_forecast is not None:
     ax.grid(True)
     st.pyplot(fig)
 
-    # Summary
+    # Summary sheet
     summary_df = pd.DataFrame({
         "Metric": ["Start Year", "End Year", "CAGR (%)"],
         "Value": [df_forecast[df_forecast["Type"] == "Historical"]["Year"].min(),
