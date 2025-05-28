@@ -46,7 +46,6 @@ def extract_insights(text):
 
     return cagr, history, trends
 
-
 def perform_regression(history):
     if not history:
         return None, None, None
@@ -127,7 +126,7 @@ for i, term in enumerate(search_terms):
         if trends:
             st.markdown("- **🌟 Trends:** " + ", ".join(set(trends)).title())
         st.markdown("---")
-
+""" 
 # Forecast and plot
 df_forecast, final_cagr, plot_data = perform_regression(all_history)
 
@@ -165,3 +164,4 @@ if df_forecast is not None:
     )
 else:
     st.warning("📉 Not enough data to generate forecast.")
+ """
