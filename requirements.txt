@@ -3,3 +3,4 @@ pandas
 openpyxl
 openai
 duckduckgo-search
+scikit-learn
